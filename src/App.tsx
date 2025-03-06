@@ -9,6 +9,7 @@ function App() {
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [copying, setCopying] = useState(false);
 
   const takeScreenshot = async () => {
     if (!url) {
@@ -41,42 +42,24 @@ function App() {
   const copyScreenshotToClipboard = async () => {
     if (!screenshot) return;
 
+    setCopying(true);
+
     try {
-      // 1. Create an Image object
-      const img = new Image();
-      img.onload = async () => {
-        // 2. Create a Canvas and draw the image onto it
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          throw new Error("Could not get 2D context from canvas");
-        }
-        ctx.drawImage(img, 0, 0);
+      // Convert data URL to blob
+      const res = await fetch(screenshot);
+      const blob = await res.blob();
 
-        // 3. Get the RGBA pixel data from the canvas
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const rgbaData = imageData.data; // This is a Uint8ClampedArray
+      // Convert blob to array buffer
+      const arrayBuffer = await blob.arrayBuffer();
 
-        // 4. Convert Uint8ClampedArray to Uint8Array (required by clipboard-manager)
-        const rgbaArray = new Uint8Array(rgbaData);
-
-        // 5. Call copyImage
-        await copyImage(rgbaArray);
-        alert("Screenshot copied to clipboard!");
-      };
-
-      img.onerror = (err) => {
-        console.error("Error loading image:", err);
-        alert("Error loading the screenshot for copying.");
-      };
-
-      // Set the image source (the base64 string)
-      img.src = screenshot;
+      // Pass array buffer to clipboard
+      await copyImage(arrayBuffer);
+      alert("Screenshot copied to clipboard!");
     } catch (err: any) {
       console.error("Failed to copy:", err);
-      alert("Failed to copy screenshot to clipboard: " + err.message);
+      setError(`Failed to copy screenshot to clipboard: ${err.message}`);
+    } finally {
+      setCopying(false);
     }
   };
 
@@ -131,9 +114,19 @@ function App() {
                   onClick={copyScreenshotToClipboard}
                   className="icon-button"
                   title="Copy to clipboard"
+                  disabled={copying}
                 >
-                  <Copy size={18} className="copy-icon" />
-                  Copy
+                  {copying ? (
+                    <>
+                      <Loader2 size={18} className="loader-icon" />
+                      Copying...
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={18} className="copy-icon" />
+                      Copy
+                    </>
+                  )}
                 </button>
               </div>
             </div>
